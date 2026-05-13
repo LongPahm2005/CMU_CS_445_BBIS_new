@@ -441,8 +441,8 @@ export default function Reports() {
                           cx="50%"
                           cy="50%"
                           outerRadius={90}
-                          label={({ name, percent }) =>
-                            `${name} ${(percent * 100).toFixed(0)}%`
+                          label={({ percent }) =>
+                            `${(percent * 100).toFixed(0)}%`
                           }
                         >
 

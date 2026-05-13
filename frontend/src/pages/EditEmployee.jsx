@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Save, User, Mail, Phone, Building2, Briefcase, Activity } from "lucide-react";
+import { ArrowLeft, Save, User, Mail, Phone, Building2, Briefcase, Activity, Calendar } from "lucide-react";
 
 export default function EditEmployee() {
   const { id } = useParams();
@@ -47,7 +47,52 @@ export default function EditEmployee() {
     loadData();
   }, [loadData]);
 
+  const validateAge = (birthDate) => {
+    const birth = new Date(birthDate);
+    const today = new Date();
+    const age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      return age - 1;
+    }
+    return age;
+  };
+
+  const validatePhoneNumber = (phone) => {
+    // Check if phone is exactly 10 digits, no letters, no hyphens
+    const phoneRegex = /^[0-9]{10}$/;
+    return phoneRegex.test(phone);
+  };
+
   const handleUpdate = async () => {
+    // Validate age (must be > 18)
+    if (employee.dateofbirth) {
+      const age = validateAge(employee.dateofbirth);
+      if (age <= 18) {
+        toast.error(`Nhân viên phải hơn 18 tuổi (Tuổi hiện tại: ${age})`);
+        return;
+      }
+    }
+
+    // Validate phone number (exactly 10 digits, no letters or hyphens)
+    if (employee.phonenumber) {
+      if (!validatePhoneNumber(employee.phonenumber)) {
+        toast.error("Số điện thoại phải gồm 10 chữ số (không có chữ, không có dấu -)");
+        return;
+      }
+    }
+
+    // Validate hire date must be after or equal to birth date
+    if (employee.dateofbirth && employee.hiredate) {
+      const birthDate = new Date(employee.dateofbirth);
+      const hireDate = new Date(employee.hiredate);
+      if (hireDate < birthDate) {
+        toast.error("Ngày vào làm không thể sớm hơn ngày sinh");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const res = await fetch(`http://localhost:5000/api/employees/${id}`, {
@@ -154,8 +199,43 @@ export default function EditEmployee() {
                   <input
                     className="form-control form-control-lg bg-light border-0 shadow-none"
                     value={employee.phonenumber || ""}
-                    onChange={(e) => handleChange("phonenumber", e.target.value)}
-                    placeholder="09xx xxx xxx"
+                    onChange={(e) => {
+                      // Only allow digits, max 10
+                      const value = e.target.value.replace(/\D/g, "").slice(0, 10);
+                      handleChange("phonenumber", value);
+                    }}
+                    placeholder="0912345678"
+                    maxLength="10"
+                    inputMode="numeric"
+                  />
+                </div>
+              </div>
+
+              {/* Ngày sinh */}
+              <div className="col-md-6">
+                <label className="form-label fw-bold text-secondary small text-uppercase">Ngày sinh</label>
+                <div className="input-group">
+                  <span className="input-group-text bg-light border-0"><Calendar size={18} className="text-muted" /></span>
+                  <input
+                    type="date"
+                    className="form-control form-control-lg bg-light border-0 shadow-none"
+                    value={employee.dateofbirth || ""}
+                    onChange={(e) => handleChange("dateofbirth", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Ngày vào làm */}
+              <div className="col-md-6">
+                <label className="form-label fw-bold text-secondary small text-uppercase">Ngày vào làm</label>
+                <div className="input-group">
+                  <span className="input-group-text bg-light border-0"><Calendar size={18} className="text-muted" /></span>
+                  <input
+                    type="date"
+                    className="form-control form-control-lg bg-light border-0 shadow-none"
+                    value={employee.hiredate || ""}
+                    onChange={(e) => handleChange("hiredate", e.target.value)}
+                    min={employee.dateofbirth}
                   />
                 </div>
               </div>

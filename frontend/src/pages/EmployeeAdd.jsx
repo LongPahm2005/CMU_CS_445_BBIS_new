@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Save, User, Mail, Phone, Building2, Briefcase, Activity, UserPlus, Calendar } from "lucide-react";
+import { ArrowLeft, Save, User, Mail, Phone, Building2, Briefcase, Activity, UserPlus, Calendar, DollarSign } from "lucide-react";
 
 export default function EmployeeAdd() {
   const navigate = useNavigate();
@@ -19,6 +19,7 @@ export default function EmployeeAdd() {
     status: "",
     dateofbirth: "",
     hiredate: new Date().toISOString().slice(0, 10),
+    basesalary: 0,
   });
 
   useEffect(() => {
@@ -40,10 +41,52 @@ export default function EmployeeAdd() {
     fetchCats();
   }, []);
 
+  const validateAge = (birthDate) => {
+    const birth = new Date(birthDate);
+    const today = new Date();
+    const age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      return age - 1;
+    }
+    return age;
+  };
+
+  const validatePhoneNumber = (phone) => {
+    // Check if phone is exactly 10 digits, no letters, no hyphens
+    const phoneRegex = /^[0-9]{10}$/;
+    return phoneRegex.test(phone);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.fullname || !formData.departmentid || !formData.positionid || !formData.status) {
+    if (!formData.fullname || !formData.departmentid || !formData.positionid || !formData.status || !formData.dateofbirth || formData.basesalary <= 0) {
       return toast.error("Vui lòng điền đầy đủ các trường bắt buộc (*)");
+    }
+
+    // Validate age (must be > 18)
+    if (formData.dateofbirth) {
+      const age = validateAge(formData.dateofbirth);
+      if (age <= 18) {
+        return toast.error(`Nhân viên phải hơn 18 tuổi (Tuổi hiện tại: ${age})`);
+      }
+    }
+
+    // Validate phone number (exactly 10 digits, no letters or hyphens)
+    if (formData.phonenumber) {
+      if (!validatePhoneNumber(formData.phonenumber)) {
+        return toast.error("Số điện thoại phải gồm 10 chữ số (không có chữ, không có dấu -)");
+      }
+    }
+
+    // Validate hire date must be after or equal to birth date
+    if (formData.dateofbirth && formData.hiredate) {
+      const birthDate = new Date(formData.dateofbirth);
+      const hireDate = new Date(formData.hiredate);
+      if (hireDate < birthDate) {
+        return toast.error("Ngày vào làm không thể sớm hơn ngày sinh");
+      }
     }
 
     setLoading(true);
@@ -146,8 +189,14 @@ export default function EmployeeAdd() {
                     <input
                       className="form-control form-control-lg bg-light border-0 shadow-none"
                       value={formData.phonenumber}
-                      onChange={(e) => handleChange("phonenumber", e.target.value)}
-                      placeholder="09xx xxx xxx"
+                      onChange={(e) => {
+                        // Only allow digits, max 10
+                        const value = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        handleChange("phonenumber", value);
+                      }}
+                      placeholder="0912345678"
+                      maxLength="10"
+                      inputMode="numeric"
                     />
                   </div>
                 </div>
@@ -177,6 +226,24 @@ export default function EmployeeAdd() {
                       className="form-control form-control-lg bg-light border-0 shadow-none"
                       value={formData.hiredate}
                       onChange={(e) => handleChange("hiredate", e.target.value)}
+                      min={formData.dateofbirth}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Lương cơ bản */}
+                <div className="col-md-6">
+                  <label className="form-label fw-bold text-secondary small text-uppercase">Lương cơ bản (VND) *</label>
+                  <div className="input-group">
+                    <span className="input-group-text bg-light border-0"><DollarSign size={18} className="text-muted" /></span>
+                    <input
+                      type="number"
+                      className="form-control form-control-lg bg-light border-0 shadow-none"
+                      value={formData.basesalary}
+                      onChange={(e) => handleChange("basesalary", parseFloat(e.target.value) || 0)}
+                      placeholder="5000000"
+                      min="0"
                       required
                     />
                   </div>

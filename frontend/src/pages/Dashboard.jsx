@@ -296,7 +296,7 @@ export default function Dashboard() {
 
                   <Bar
                     dataKey="count"
-                    fill="#1abc9c"
+                    fill="#1c723cff"
                     radius={[6, 6, 0, 0]}
                     barSize={40}
                   />

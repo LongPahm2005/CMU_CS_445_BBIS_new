@@ -171,9 +171,8 @@ def add_employee():
         return jsonify({"success": True, "message": "Thêm nhân viên thành công!", "employeeid": new_id}), 201
     except Exception as e:
         if conn_sql: conn_sql.rollback()
-        if conn_mysql: conn_mysql.rollback()
         print("ADD EMPLOYEE ERROR:", str(e))
         return jsonify({"success": False, "message": str(e)}), 500
     finally:
         if conn_sql: conn_sql.close()
-        if conn_mysql: conn_mysql.close()
+

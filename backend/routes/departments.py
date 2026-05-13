@@ -36,37 +36,61 @@ def list_departments():
 @departments_bp.delete("/api/departments/<int:dept_id>")
 def delete_department(dept_id):
     conn = None
+    m_conn = None
     try:
         conn = get_human_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM Departments WHERE DepartmentID = ?", (dept_id,))
         conn.commit()
-        if cursor.rowcount == 0:
-            return jsonify({"success": False, "message": "Không tìm thấy phòng ban"}), 404
+        
+        # Sync delete to payroll DB (MySQL)
+        try:
+            m_conn = get_mysql_connection()
+            m_cur = m_conn.cursor()
+            m_cur.execute("DELETE FROM departments_payroll WHERE DepartmentID = %s", (dept_id,))
+            m_conn.commit()
+        except Exception as sync_err:
+            print(f"SYNC DELETE ERROR: {sync_err}")
+            
         return jsonify({"success": True, "message": "Xóa phòng ban thành công"}), 200
     except Exception as e:
         print(f"DELETE DEPARTMENT ERROR: {e}")
         return jsonify({"success": False, "message": "Không thể xóa phòng ban"}), 500
     finally:
         if conn: conn.close()
+        if m_conn: m_conn.close()
 
 @departments_bp.put("/api/departments/<int:dept_id>")
 def update_department(dept_id):
     conn = None
+    m_conn = None
     try:
         data = request.get_json()
         new_name = data.get("name")
         if not new_name:
             return jsonify({"success": False, "message": "Tên phòng ban không được trống"}), 400
+            
         conn = get_human_connection()
         cursor = conn.cursor()
         cursor.execute("UPDATE Departments SET DepartmentName = ? WHERE DepartmentID = ?", (new_name, dept_id))
         conn.commit()
+        
+        # Sync update to MySQL payroll DB
+        try:
+            m_conn = get_mysql_connection()
+            m_cur = m_conn.cursor()
+            # Note: Screen 2 shows only DepartmentID, DepartmentName, SyncedAt
+            m_cur.execute("UPDATE departments_payroll SET DepartmentName = %s, SyncedAt = NOW() WHERE DepartmentID = %s", (new_name, dept_id))
+            m_conn.commit()
+        except Exception as sync_err:
+            print(f"SYNC UPDATE ERROR: {sync_err}")
+            
         return jsonify({"success": True, "message": "Cập nhật thành công"}), 200
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
     finally:
         if conn: conn.close()
+        if m_conn: m_conn.close()
 
 @departments_bp.get("/api/departments/<int:dept_id>/employees")
 def get_department_employees(dept_id):
@@ -151,6 +175,7 @@ def get_department_detail(id):
 @departments_bp.post("/api/departments")
 def add_department():
     conn = None
+    m_conn = None
     try:
         data = request.get_json()
         name = data.get("name")
@@ -162,8 +187,30 @@ def add_department():
         cursor.execute("INSERT INTO Departments (DepartmentName, CreatedAt, UpdatedAt) VALUES (?, GETDATE(), GETDATE())", (name,))
         conn.commit()
         
-        return jsonify({"success": True, "message": "Thêm phòng ban thành công"}), 201
+        # Retrieve newly inserted DepartmentID using SCOPE_IDENTITY for SQL Server
+        cursor.execute("SELECT @@IDENTITY")
+        new_id_row = cursor.fetchone()
+        new_id = int(new_id_row[0]) if new_id_row and new_id_row[0] else None
+        
+        if not new_id:
+             # Fallback to MAX if @@IDENTITY fails
+             cursor.execute("SELECT MAX(DepartmentID) FROM Departments")
+             new_id = cursor.fetchone()[0]
+
+        # Sync to MySQL payroll DB
+        try:
+            m_conn = get_mysql_connection()
+            m_cur = m_conn.cursor()
+            # MySQL table columns: DepartmentID, DepartmentName, SyncedAt
+            m_cur.execute("INSERT INTO departments_payroll (DepartmentID, DepartmentName, SyncedAt) VALUES (%s, %s, NOW())", (new_id, name))
+            m_conn.commit()
+        except Exception as sync_err:
+            print(f"SYNC ADD ERROR: {sync_err}")
+        
+        return jsonify({"success": True, "message": "Thêm phòng ban thành công", "id": new_id}), 201
     except Exception as e:
+        print(f"ADD DEPARTMENT ERROR: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
     finally:
         if conn: conn.close()
+        if m_conn: m_conn.close()
